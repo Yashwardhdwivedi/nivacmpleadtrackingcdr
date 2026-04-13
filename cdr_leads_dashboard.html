@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CDR · Leads Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f4f6fa;
+    --bg2: #ffffff;
+    --bg3: #f0f2f7;
+    --bg4: #e6e9f0;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.14);
+    --text: #1a1d2e;
+    --text2: #6b7280;
+    --text3: #9ca3af;
+    --accent: #3b6ef5;
+    --accent2: #6c4ef5;
+    --green: #12a066;
+    --amber: #d97706;
+    --red: #dc2626;
+    --teal: #0891b2;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 600; color: #fff;
+  }
+  .logo-text { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 12px; color: var(--text2); margin-top: -2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+
+  /* ── UPLOAD ZONE ── */
+  #upload-screen {
+    min-height: calc(100vh - 61px);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 32px;
+    padding: 40px 24px;
+  }
+  .upload-hero { text-align: center; }
+  .upload-hero h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .upload-hero p { color: var(--text2); font-size: 15px; }
+  .upload-cards {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 20px; width: 100%; max-width: 680px;
+  }
+  .upload-card {
+    background: var(--bg2); border: 1.5px dashed var(--border2);
+    border-radius: var(--radius-lg); padding: 32px 24px;
+    text-align: center; cursor: pointer; transition: all 0.2s;
+    position: relative;
+  }
+  .upload-card:hover { border-color: var(--accent); background: rgba(79,124,255,0.05); }
+  .upload-card.loaded { border-style: solid; border-color: var(--green); }
+  .upload-card input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .upload-card p { color: var(--text2); font-size: 12px; }
+  .upload-status { font-size: 12px; margin-top: 10px; padding: 4px 10px; border-radius: 20px; display: inline-block; }
+  .status-ok { background: rgba(34,201,126,0.15); color: var(--green); }
+  .status-wait { background: rgba(255,255,255,0.05); color: var(--text3); }
+  .btn-analyze {
+    padding: 13px 40px; border-radius: 8px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-size: 15px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+    transition: opacity 0.2s, transform 0.15s;
+    opacity: 0.4; pointer-events: none;
+  }
+  .btn-analyze.active { opacity: 1; pointer-events: auto; }
+  .btn-analyze:hover { transform: translateY(-1px); }
+
+  /* ── DASHBOARD ── */
+  #dashboard { display: none; padding: 24px 28px; max-width: 1600px; margin: 0 auto; }
+
+  .filters-bar {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
+    align-items: center;
+  }
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .filter-group label { color: var(--text2); font-size: 12px; white-space: nowrap; }
+  select, input[type=text] {
+    background: #fff; border: 1px solid var(--border2);
+    color: var(--text); border-radius: 7px; padding: 7px 12px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+  }
+  select:focus, input[type=text]:focus { border-color: var(--accent); }
+  .btn-reset {
+    padding: 7px 16px; border-radius: 7px; border: 1px solid var(--border2);
+    background: transparent; color: var(--text2); cursor: pointer;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .btn-reset:hover { background: var(--bg3); color: var(--text); }
+  .ml-auto { margin-left: auto; }
+  .btn-download {
+    padding: 7px 16px; border-radius: 7px; border: 1px solid var(--accent);
+    background: rgba(79,124,255,0.1); color: var(--accent); cursor: pointer;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .btn-download:hover { background: rgba(79,124,255,0.2); }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px; margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 18px 20px;
+    position: relative; overflow: hidden; transition: border-color 0.2s;
+  }
+  .kpi-card:hover { border-color: var(--border2); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .kpi-card.blue::before { background: var(--accent); }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.amber::before { background: var(--amber); }
+  .kpi-card.red::before { background: var(--red); }
+  .kpi-card.teal::before { background: var(--teal); }
+  .kpi-card.purple::before { background: var(--accent2); }
+  .kpi-label { font-size: 11px; color: var(--text2); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px; }
+  .kpi-value { font-size: 28px; font-weight: 600; letter-spacing: -1px; line-height: 1; margin-bottom: 4px; }
+  .kpi-sub { font-size: 11px; color: var(--text3); }
+  .kpi-card.blue .kpi-value { color: var(--accent); }
+  .kpi-card.green .kpi-value { color: var(--green); }
+  .kpi-card.amber .kpi-value { color: var(--amber); }
+  .kpi-card.red .kpi-value { color: var(--red); }
+  .kpi-card.teal .kpi-value { color: var(--teal); }
+  .kpi-card.purple .kpi-value { color: var(--accent2); }
+
+  /* SECTION LAYOUT */
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    letter-spacing: 0.6px; text-transform: uppercase;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px;
+  }
+  .chart-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .chart-card .chart-sub { font-size: 11px; color: var(--text3); margin-bottom: 16px; }
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* FUNNEL */
+  .funnel-wrap { padding: 8px 0; }
+  .funnel-step {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 10px;
+  }
+  .funnel-bar-wrap { flex: 1; }
+  .funnel-label { font-size: 12px; color: var(--text2); width: 130px; text-align: right; white-space: nowrap; }
+  .funnel-bar-bg { background: var(--bg4); border-radius: 4px; height: 28px; overflow: hidden; }
+  .funnel-bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 10px; font-size: 12px; font-weight: 600; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+  .funnel-pct { width: 50px; text-align: right; font-size: 12px; font-weight: 600; font-family: 'DM Mono', monospace; }
+
+  /* TABLE */
+  .table-section { margin-bottom: 24px; }
+  .table-controls { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: #f8f9fc; }
+  th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 11px;
+    letter-spacing: 0.5px; text-transform: uppercase; color: var(--text2);
+    border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+  th:hover { color: var(--text); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(0,0,0,0.02); }
+  .badge {
+    display: inline-flex; align-items: center; padding: 2px 8px;
+    border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .badge-green { background: rgba(34,201,126,0.15); color: var(--green); }
+  .badge-red { background: rgba(240,71,71,0.15); color: var(--red); }
+  .badge-amber { background: rgba(245,166,35,0.15); color: var(--amber); }
+  .badge-blue { background: rgba(79,124,255,0.15); color: var(--accent); }
+  .badge-gray { background: rgba(255,255,255,0.07); color: var(--text2); }
+  .priority-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px;
+  }
+  .priority-high { background: var(--red); }
+  .priority-medium { background: var(--amber); }
+  .priority-low { background: var(--green); }
+
+  .pagination { display: flex; gap: 6px; align-items: center; margin-top: 12px; justify-content: flex-end; }
+  .page-btn {
+    padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); cursor: pointer; font-size: 12px;
+    font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .page-btn:hover, .page-btn.active { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+  .page-info { font-size: 12px; color: var(--text3); padding: 0 6px; }
+
+  /* AGENT TABLE specific */
+  .agent-bar { height: 6px; border-radius: 3px; background: var(--bg4); overflow: hidden; min-width: 80px; }
+  .agent-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+
+  /* MISSED LEADS highlight */
+  .highlight-row td { background: rgba(220,38,38,0.04); }
+  .highlight-row:hover td { background: rgba(220,38,38,0.08); }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(244,246,250,0.85);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    z-index: 999; display: none;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid var(--border2);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--text2); font-size: 14px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; }
+    .upload-cards { grid-template-columns: 1fr; }
+    #dashboard { padding: 16px; }
+    .header { padding: 14px 16px; }
+  }
+  @media (max-width: 600px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 14px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab-btn {
+    padding: 8px 16px; border: none; background: transparent; color: var(--text2);
+    font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* TOOLTIP helper */
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Processing data…</div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">A</div>
+    <div>
+      <div class="logo-text">Analytics Dashboard</div>
+      <div class="logo-sub">CDR · Leads Intelligence</div>
+    </div>
+  </div>
+  <div class="header-right" id="header-status"></div>
+</header>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-hero">
+    <h1>Upload your datasets</h1>
+    <p>Join CDR records with lead health data to generate a unified analytics report</p>
+  </div>
+  <div class="upload-cards">
+    <div class="upload-card" id="cdr-card">
+      <input type="file" id="cdr-file" accept=".csv"/>
+      <div class="upload-icon">📞</div>
+      <h3>CDR CSV</h3>
+      <p>Call Detail Records<br>Caller ID, Agent, Duration, Status…</p>
+      <div class="upload-status status-wait" id="cdr-status">No file selected</div>
+    </div>
+    <div class="upload-card" id="leads-card">
+      <input type="file" id="leads-file" accept=".csv"/>
+      <div class="upload-icon">🧬</div>
+      <h3>Leads / Health CSV</h3>
+      <p>Patient records<br>Phone, Priority, Lab values…</p>
+      <div class="upload-status status-wait" id="leads-status">No file selected</div>
+    </div>
+  </div>
+  <button class="btn-analyze" id="btn-analyze">Generate Dashboard →</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+
+  <!-- FILTERS -->
+  <div class="filters-bar">
+    <div class="filter-group">
+      <label>Date Range</label>
+      <select id="filter-date">
+        <option value="all">All Dates</option>
+        <option value="today">Today</option>
+        <option value="7d">Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Agent</label>
+      <select id="filter-agent"><option value="all">All Agents</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Priority</label>
+      <select id="filter-priority">
+        <option value="all">All Priorities</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Campaign</label>
+      <select id="filter-campaign"><option value="all">All Campaigns</option></select>
+    </div>
+    <button class="btn-reset" onclick="resetFilters()">Reset</button>
+    <button class="btn-download ml-auto" onclick="downloadProcessed()">⬇ Download Processed CSV</button>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showTab('agents',this)">Agent Performance</button>
+    <button class="tab-btn" onclick="showTab('trends',this)">Trends</button>
+    <button class="tab-btn" onclick="showTab('missed',this)">Missed Opportunities</button>
+    <button class="tab-btn" onclick="showTab('leads',this)">Lead Details</button>
+  </div>
+
+  <!-- OVERVIEW TAB -->
+  <div class="tab-pane active" id="tab-overview">
+
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="section-title">Funnel Analysis</div>
+    <div class="chart-grid-2" style="margin-bottom:24px;">
+      <div class="chart-card">
+        <h4>Lead Conversion Funnel</h4>
+        <div class="chart-sub">From total leads to final disposition</div>
+        <div class="funnel-wrap" id="funnel-chart"></div>
+      </div>
+      <div class="chart-card">
+        <h4>Call Status Distribution</h4>
+        <div class="chart-sub">Breakdown of all call outcomes</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="statusChart" role="img" aria-label="Call status distribution donut chart"></canvas>
+        </div>
+        <div class="chart-legend" id="statusLegend"></div>
+      </div>
+    </div>
+
+    <div class="section-title">Coverage & Priority</div>
+    <div class="chart-grid-3">
+      <div class="chart-card">
+        <h4>Lead Coverage</h4>
+        <div class="chart-sub">Called vs Not Called</div>
+        <div class="chart-wrap" style="height:200px;">
+          <canvas id="coverageChart" role="img" aria-label="Lead coverage donut chart"></canvas>
+        </div>
+        <div class="chart-legend" id="coverageLegend"></div>
+      </div>
+      <div class="chart-card">
+        <h4>High Priority Coverage</h4>
+        <div class="chart-sub">Critical leads contact rate</div>
+        <div class="chart-wrap" style="height:200px;">
+          <canvas id="priorityChart" role="img" aria-label="High priority leads coverage chart"></canvas>
+        </div>
+        <div class="chart-legend" id="priorityLegend"></div>
+      </div>
+      <div class="chart-card">
+        <h4>Disposition Breakdown</h4>
+        <div class="chart-sub">Top call outcomes</div>
+        <div class="chart-wrap" style="height:200px;">
+          <canvas id="dispChart" role="img" aria-label="Disposition breakdown bar chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AGENT TAB -->
+  <div class="tab-pane" id="tab-agents">
+    <div class="section-title">Agent Performance</div>
+    <div class="chart-grid-2" style="margin-bottom:24px;">
+      <div class="chart-card">
+        <h4>Calls Handled per Agent</h4>
+        <div class="chart-sub">Total calls by agent name</div>
+        <div class="chart-wrap" id="agentCallsWrap" style="height:300px;">
+          <canvas id="agentCallsChart" role="img" aria-label="Calls handled per agent bar chart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h4>Avg Call Duration per Agent (sec)</h4>
+        <div class="chart-sub">Mean total call duration</div>
+        <div class="chart-wrap" id="agentDurWrap" style="height:300px;">
+          <canvas id="agentDurChart" role="img" aria-label="Average call duration per agent chart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="section-title">Agent Summary Table</div>
+    <div class="table-wrap">
+      <table id="agent-table">
+        <thead><tr>
+          <th>Agent</th><th>Calls</th><th>Connected</th><th>Connect Rate</th><th>Avg Duration (s)</th><th>Unique Leads</th>
+        </tr></thead>
+        <tbody id="agent-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TRENDS TAB -->
+  <div class="tab-pane" id="tab-trends">
+    <div class="section-title">Call Volume Trends</div>
+    <div class="chart-card" style="margin-bottom:20px;">
+      <h4>Daily Call Volume</h4>
+      <div class="chart-sub">Total calls and connected calls per day</div>
+      <div class="chart-wrap" style="height:260px;">
+        <canvas id="dailyChart" role="img" aria-label="Daily call volume line chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-grid-2">
+      <div class="chart-card">
+        <h4>Hourly Call Distribution</h4>
+        <div class="chart-sub">Peak calling hours across all days</div>
+        <div class="chart-wrap" style="height:240px;">
+          <canvas id="hourlyChart" role="img" aria-label="Hourly call distribution bar chart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h4>Avg Response Time by Hour (sec)</h4>
+        <div class="chart-sub">Start → Answered timestamp gap</div>
+        <div class="chart-wrap" style="height:240px;">
+          <canvas id="responseChart" role="img" aria-label="Average response time by hour chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MISSED TAB -->
+  <div class="tab-pane" id="tab-missed">
+    <div class="kpi-grid" id="missed-kpi-grid"></div>
+    <div class="section-title">Churn & Missed Opportunity Analysis</div>
+    <div class="table-controls">
+      <input type="text" id="missed-search" placeholder="Search leads…" style="width:220px;" oninput="filterMissedTable()"/>
+      <select id="missed-filter" onchange="filterMissedTable()">
+        <option value="all">All Missed</option>
+        <option value="never">Never Called</option>
+        <option value="multi-miss">Multiple Missed Calls</option>
+        <option value="high-risk">High-Risk Not Contacted</option>
+        <option value="no-outcome">Contacted, No Outcome</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortMissed('name')">Customer</th>
+          <th onclick="sortMissed('phone')">Phone</th>
+          <th onclick="sortMissed('priority')">Priority</th>
+          <th onclick="sortMissed('status')">Lead Status</th>
+          <th onclick="sortMissed('calls')">Calls Made</th>
+          <th onclick="sortMissed('missed')">Missed Calls</th>
+          <th onclick="sortMissed('risk')">Risk Score</th>
+          <th>Last Attempt</th>
+          <th>Flag</th>
+        </tr></thead>
+        <tbody id="missed-tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="missed-pagination"></div>
+  </div>
+
+  <!-- LEADS TAB -->
+  <div class="tab-pane" id="tab-leads">
+    <div class="section-title">Lead Details</div>
+    <div class="table-controls">
+      <input type="text" id="lead-search" placeholder="Search by name, phone, agent…" style="width:260px;" oninput="filterLeadsTable()"/>
+      <select id="lead-status-filter" onchange="filterLeadsTable()">
+        <option value="all">All Statuses</option>
+        <option value="connected">Connected</option>
+        <option value="not connected">Not Connected</option>
+        <option value="not called">Not Called</option>
+      </select>
+      <select id="lead-priority-filter" onchange="filterLeadsTable()">
+        <option value="all">All Priorities</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <span style="margin-left:auto; font-size:12px; color:var(--text3);" id="leads-count"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortLeads('name')">Name</th>
+          <th onclick="sortLeads('phone')">Phone</th>
+          <th onclick="sortLeads('priority')">Priority</th>
+          <th onclick="sortLeads('leadStatus')">Lead Status</th>
+          <th onclick="sortLeads('totalCalls')">Total Calls</th>
+          <th onclick="sortLeads('firstCall')">First Call</th>
+          <th onclick="sortLeads('lastCall')">Last Call</th>
+          <th onclick="sortLeads('totalDuration')">Total Duration (s)</th>
+          <th onclick="sortLeads('agent')">Last Agent</th>
+          <th>HbA1c Risk</th>
+          <th>Chol Risk</th>
+        </tr></thead>
+        <tbody id="leads-tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="leads-pagination"></div>
+  </div>
+
+</div>
+
+<script>
+/* ── STATE ── */
+let rawCDR = [], rawLeads = [], joinedData = [], filteredJoined = [], charts = {};
+let leadsPage = 1, missedPage = 1;
+const PER_PAGE = 50;
+let missedSort = {col:'risk', dir:-1}, leadsSort = {col:'totalCalls', dir:-1};
+let missedDataFiltered = [], leadsDataFiltered = [];
+
+/* ── FILE UPLOAD ── */
+document.getElementById('cdr-file').addEventListener('change', e => handleFile(e, 'cdr'));
+document.getElementById('leads-file').addEventListener('change', e => handleFile(e, 'leads'));
+
+function handleFile(e, type) {
+  const file = e.target.files[0]; if (!file) return;
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true, dynamicTyping: false,
+    complete: res => {
+      if (type === 'cdr') { rawCDR = res.data; updateUploadUI('cdr', file.name, rawCDR.length); }
+      else { rawLeads = res.data; updateUploadUI('leads', file.name, rawLeads.length); }
+      checkReady();
+    }
+  });
+}
+
+function updateUploadUI(type, name, count) {
+  const card = document.getElementById(type + '-card');
+  const status = document.getElementById(type + '-status');
+  card.classList.add('loaded');
+  status.textContent = `✓ ${name} — ${count.toLocaleString()} rows`;
+  status.className = 'upload-status status-ok';
+}
+
+function checkReady() {
+  const btn = document.getElementById('btn-analyze');
+  if (rawCDR.length && rawLeads.length) btn.classList.add('active');
+}
+
+document.getElementById('btn-analyze').addEventListener('click', () => {
+  showLoading(true);
+  setTimeout(() => { processData(); showLoading(false); }, 50);
+});
+
+function showLoading(v) { document.getElementById('loading').style.display = v ? 'flex' : 'none'; }
+
+/* ── NORMALISE PHONE ── */
+function normPhone(p) {
+  if (!p) return '';
+  return String(p).replace(/\D/g, '').slice(-10);
+}
+
+/* ── PROCESS DATA ── */
+function processData() {
+  // Build leads map keyed by normalised phone
+  const leadsMap = new Map();
+  rawLeads.forEach(l => {
+    const key = normPhone(l['Phone Number'] || l['phone_number'] || l['Phone'] || '');
+    if (key) leadsMap.set(key, l);
+  });
+
+  // Build CDR calls grouped by caller phone
+  const callsByPhone = new Map();
+  rawCDR.forEach(c => {
+    const key = normPhone(c['Caller ID Number'] || c['caller_id_number'] || '');
+    if (!key) return;
+    if (!callsByPhone.has(key)) callsByPhone.set(key, []);
+    callsByPhone.get(key).push(c);
+  });
+
+  // JOIN
+  const allPhones = new Set([...leadsMap.keys(), ...callsByPhone.keys()]);
+  joinedData = [];
+
+  allPhones.forEach(phone => {
+    const lead = leadsMap.get(phone) || null;
+    const calls = callsByPhone.get(phone) || [];
+    const totalCalls = calls.length;
+    const connected = calls.filter(c => isConnected(c)).length;
+    const missed = calls.filter(c => isMissed(c)).length;
+
+    const timestamps = calls.map(c => parseTS(c['Start Timestamp'] || c['start_timestamp'])).filter(Boolean).sort((a,b)=>a-b);
+    const firstCall = timestamps.length ? timestamps[0] : null;
+    const lastCall = timestamps.length ? timestamps[timestamps.length-1] : null;
+
+    const durations = calls.map(c => parseFloat(c['Total Call Duration'] || c['total_call_duration'] || 0)).filter(d => d>0);
+    const totalDuration = durations.reduce((s,d)=>s+d, 0);
+
+    const lastCall_ = calls.length ? calls[calls.length-1] : null;
+    const agent = lastCall_ ? (lastCall_['Answered Agent Name'] || lastCall_['Agent Name'] || '') : '';
+
+    let leadStatus = 'Not Called';
+    if (totalCalls > 0) {
+      leadStatus = connected > 0 ? 'Connected' : 'Not Connected';
+    }
+
+    const priority = lead ? (lead['Priority Text'] || lead['Priority'] || 'Unknown') : 'Unknown';
+    const priorityNorm = normPriority(priority);
+
+    const riskScore = calcRisk(lead, connected, missed, totalCalls);
+
+    joinedData.push({
+      phone, lead, calls, totalCalls, connected, missed,
+      firstCall, lastCall, totalDuration, leadStatus, agent, priority, priorityNorm, riskScore,
+      name: lead ? (lead['Customer Name'] || lead['customer_name'] || 'Unknown') : 'Unknown (CDR only)',
+      hba1cRisk: lead ? lead['HbA1c Risk'] : '',
+      cholRisk: lead ? lead['Chol Risk'] : '',
+      trigRisk: lead ? lead['Trig Risk'] : '',
+    });
+  });
+
+  filteredJoined = [...joinedData];
+
+  // Populate filter dropdowns
+  populateFilters();
+
+  // Render
+  renderAll();
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('header-status').innerHTML =
+    `<span style="font-size:12px;color:var(--text2);">${joinedData.length.toLocaleString()} leads · ${rawCDR.length.toLocaleString()} calls</span>`;
+}
+
+function isConnected(c) {
+  const status = (c['Call Status'] || '').toLowerCase();
+  const answered = c['Answered Timestamp'] || c['answered_timestamp'] || '';
+  return status.includes('answer') || status.includes('connected') || (answered && answered.trim() !== '');
+}
+function isMissed(c) {
+  const status = (c['Call Status'] || '').toLowerCase();
+  return status.includes('miss') || status.includes('no answer') || status.includes('busy') || status.includes('fail');
+}
+
+function parseTS(str) {
+  if (!str || str.trim() === '') return null;
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function normPriority(p) {
+  const s = String(p).toLowerCase();
+  if (s.includes('high') || s === '1' || s === 'p1') return 'high';
+  if (s.includes('med') || s === '2' || s === 'p2') return 'medium';
+  if (s.includes('low') || s === '3' || s === 'p3') return 'low';
+  return 'unknown';
+}
+
+function calcRisk(lead, connected, missed, totalCalls) {
+  let score = 0;
+  if (!lead) return score;
+  // health risk signals
+  const hba1c = lead['HbA1c Risk'] || '';
+  const chol = lead['Chol Risk'] || '';
+  const trig = lead['Trig Risk'] || '';
+  if (hba1c.toLowerCase().includes('high') || hba1c === '3') score += 30;
+  else if (hba1c.toLowerCase().includes('border') || hba1c === '2') score += 15;
+  if (chol.toLowerCase().includes('high') || chol === '3') score += 20;
+  if (trig.toLowerCase().includes('high') || trig === '3') score += 20;
+  const priority = lead['Priority'] || lead['Priority Text'] || '';
+  if (normPriority(priority) === 'high') score += 30;
+  if (totalCalls === 0) score += 20;
+  else if (connected === 0) score += 10 + missed * 3;
+  return Math.min(score, 100);
+}
+
+function populateFilters() {
+  const agents = [...new Set(rawCDR.map(c => c['Answered Agent Name'] || c['Agent Name'] || '').filter(Boolean))].sort();
+  const agentSel = document.getElementById('filter-agent');
+  agents.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; agentSel.appendChild(o); });
+
+  const camps = [...new Set(rawCDR.map(c => c['Campaign Name'] || '').filter(Boolean))].sort();
+  const campSel = document.getElementById('filter-campaign');
+  camps.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; campSel.appendChild(o); });
+}
+
+/* ── FILTERS ── */
+function applyFilters() {
+  const agent = document.getElementById('filter-agent').value;
+  const priority = document.getElementById('filter-priority').value;
+  const campaign = document.getElementById('filter-campaign').value;
+  const dateRange = document.getElementById('filter-date').value;
+
+  const now = new Date();
+  filteredJoined = joinedData.filter(row => {
+    if (priority !== 'all' && row.priorityNorm !== priority) return false;
+    if (agent !== 'all') {
+      const hasAgent = row.calls.some(c => (c['Answered Agent Name'] || c['Agent Name'] || '') === agent);
+      if (!hasAgent) return false;
+    }
+    if (campaign !== 'all') {
+      const hasCamp = row.calls.some(c => (c['Campaign Name'] || '') === campaign);
+      if (!hasCamp) return false;
+    }
+    if (dateRange !== 'all' && row.firstCall) {
+      const cutoff = new Date(now);
+      if (dateRange === 'today') cutoff.setHours(0,0,0,0);
+      else if (dateRange === '7d') cutoff.setDate(cutoff.getDate()-7);
+      else if (dateRange === '30d') cutoff.setDate(cutoff.getDate()-30);
+      if (row.firstCall < cutoff) return false;
+    }
+    return true;
+  });
+  renderAll();
+}
+['filter-agent','filter-priority','filter-campaign','filter-date'].forEach(id => {
+  document.getElementById(id).addEventListener('change', applyFilters);
+});
+
+function resetFilters() {
+  ['filter-agent','filter-priority','filter-campaign','filter-date'].forEach(id => {
+    document.getElementById(id).value = 'all';
+  });
+  filteredJoined = [...joinedData];
+  renderAll();
+}
+
+/* ── RENDER ALL ── */
+function renderAll() {
+  renderKPIs();
+  renderFunnel();
+  renderStatusChart();
+  renderCoverageCharts();
+  renderDispChart();
+  renderAgentTab();
+  renderTrendsTab();
+  renderMissedTab();
+  renderLeadsTab();
+}
+
+/* ── KPI CARDS ── */
+function renderKPIs() {
+  const total = filteredJoined.length;
+  const contacted = filteredJoined.filter(r => r.leadStatus !== 'Not Called').length;
+  const notContacted = total - contacted;
+  const highNotContacted = filteredJoined.filter(r => r.priorityNorm === 'high' && r.leadStatus === 'Not Called').length;
+  const totalCalls = filteredJoined.reduce((s,r) => s + r.totalCalls, 0);
+  const totalConnected = filteredJoined.reduce((s,r) => s + r.connected, 0);
+  const connectPct = totalCalls ? ((totalConnected/totalCalls)*100).toFixed(1) : 0;
+
+  const kpis = [
+    { label: 'Total Leads', value: total.toLocaleString(), sub: 'across all records', color: 'blue' },
+    { label: 'Leads Contacted', value: contacted.toLocaleString(), sub: `${total ? ((contacted/total)*100).toFixed(0) : 0}% coverage`, color: 'green' },
+    { label: 'Not Contacted', value: notContacted.toLocaleString(), sub: 'require follow-up', color: 'amber' },
+    { label: 'High Priority Missed', value: highNotContacted.toLocaleString(), sub: 'critical · needs action', color: 'red' },
+    { label: 'Total Calls', value: totalCalls.toLocaleString(), sub: 'CDR records', color: 'teal' },
+    { label: 'Connect Rate', value: connectPct + '%', sub: `${totalConnected.toLocaleString()} connected`, color: 'purple' },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+/* ── FUNNEL ── */
+function renderFunnel() {
+  const total = filteredJoined.length;
+  const called = filteredJoined.filter(r => r.totalCalls > 0).length;
+  const connected = filteredJoined.filter(r => r.connected > 0).length;
+
+  // Count leads with a non-empty disposition
+  const withDisp = filteredJoined.filter(r => r.calls.some(c => c['Disposition Name'] && c['Disposition Name'].trim())).length;
+
+  const steps = [
+    { label: 'Total Leads', count: total, color: '#4f7cff' },
+    { label: 'Called', count: called, color: '#7c5cfc' },
+    { label: 'Connected', count: connected, color: '#22c97e' },
+    { label: 'Disposition Set', count: withDisp, color: '#00c9b1' },
+  ];
+  const max = total || 1;
+  document.getElementById('funnel-chart').innerHTML = steps.map(s => `
+    <div class="funnel-step">
+      <div class="funnel-label">${s.label}</div>
+      <div class="funnel-bar-wrap">
+        <div class="funnel-bar-bg">
+          <div class="funnel-bar-fill" style="width:${(s.count/max*100).toFixed(1)}%;background:${s.color};color:#fff;">
+            ${s.count.toLocaleString()}
+          </div>
+        </div>
+      </div>
+      <div class="funnel-pct" style="color:${s.color};">${max ? ((s.count/max)*100).toFixed(0) : 0}%</div>
+    </div>`).join('');
+}
+
+/* ── STATUS DONUT ── */
+function renderStatusChart() {
+  const counts = {};
+  filteredJoined.forEach(r => { counts[r.leadStatus] = (counts[r.leadStatus]||0)+1; });
+  const labels = Object.keys(counts);
+  const data = Object.values(counts);
+  const palette = ['#3b6ef5','#12a066','#d97706','#dc2626','#0891b2','#6c4ef5'];
+
+  destroyChart('statusChart');
+  charts.statusChart = new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: palette, borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString()}`
+      }}}
+    }
+  });
+  document.getElementById('statusLegend').innerHTML = labels.map((l,i)=>
+    `<div class="legend-item"><span class="legend-dot" style="background:${palette[i]};border-radius:50%;"></span>${l}: <b style="color:var(--text)">${data[i].toLocaleString()}</b></div>`
+  ).join('');
+}
+
+/* ── COVERAGE CHARTS ── */
+function renderCoverageCharts() {
+  const total = filteredJoined.length;
+  const called = filteredJoined.filter(r => r.totalCalls > 0).length;
+  const notCalled = total - called;
+
+  destroyChart('coverageChart');
+  charts.coverageChart = new Chart(document.getElementById('coverageChart'), {
+    type: 'doughnut',
+    data: { labels: ['Called','Not Called'], datasets: [{ data: [called, notCalled], backgroundColor: ['#12a066','#dc2626'], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+  document.getElementById('coverageLegend').innerHTML = [['Called',called,'#12a066'],['Not Called',notCalled,'#dc2626']].map(([l,v,c])=>
+    `<div class="legend-item"><span class="legend-dot" style="background:${c};border-radius:50%;"></span>${l}: <b style="color:var(--text)">${v.toLocaleString()}</b></div>`
+  ).join('');
+
+  const highLeads = filteredJoined.filter(r => r.priorityNorm === 'high');
+  const hContacted = highLeads.filter(r => r.totalCalls > 0).length;
+  const hMissed = highLeads.length - hContacted;
+  destroyChart('priorityChart');
+  charts.priorityChart = new Chart(document.getElementById('priorityChart'), {
+    type: 'doughnut',
+    data: { labels: ['Contacted','Missed'], datasets: [{ data: [hContacted, hMissed], backgroundColor: ['#12a066','#dc2626'], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+  document.getElementById('priorityLegend').innerHTML = [['Contacted',hContacted,'#12a066'],['Missed (⚠)',hMissed,'#dc2626']].map(([l,v,c])=>
+    `<div class="legend-item"><span class="legend-dot" style="background:${c};border-radius:50%;"></span>${l}: <b style="color:var(--text)">${v.toLocaleString()}</b></div>`
+  ).join('');
+}
+
+/* ── DISPOSITION CHART ── */
+function renderDispChart() {
+  const dispCounts = {};
+  filteredJoined.forEach(r => r.calls.forEach(c => {
+    const d = c['Disposition Name'] || 'Unknown';
+    if (d) dispCounts[d] = (dispCounts[d]||0)+1;
+  }));
+  const sorted = Object.entries(dispCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const labels = sorted.map(s=>s[0]);
+  const data = sorted.map(s=>s[1]);
+  destroyChart('dispChart');
+  charts.dispChart = new Chart(document.getElementById('dispChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: '#3b6ef522', borderColor: '#3b6ef5', borderWidth: 1, borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#6b7280', font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+/* ── AGENTS ── */
+function renderAgentTab() {
+  const agentMap = {};
+  filteredJoined.forEach(row => {
+    row.calls.forEach(c => {
+      const a = c['Answered Agent Name'] || c['Agent Name'] || 'Unknown';
+      if (!a || a === 'Unknown') return;
+      if (!agentMap[a]) agentMap[a] = { calls:0, connected:0, dur:[], phones: new Set() };
+      agentMap[a].calls++;
+      if (isConnected(c)) agentMap[a].connected++;
+      const d = parseFloat(c['Total Call Duration']||0);
+      if (d>0) agentMap[a].dur.push(d);
+      const ph = normPhone(c['Caller ID Number']||'');
+      if (ph) agentMap[a].phones.add(ph);
+    });
+  });
+
+  const agents = Object.entries(agentMap).sort((a,b)=>b[1].calls-a[1].calls).slice(0,20);
+  const labels = agents.map(a=>a[0]);
+  const callData = agents.map(a=>a[1].calls);
+  const durData = agents.map(a=>a[1].dur.length ? Math.round(a[1].dur.reduce((s,v)=>s+v,0)/a[1].dur.length) : 0);
+  const maxCalls = Math.max(...callData, 1);
+
+  document.getElementById('agentCallsWrap').style.height = Math.max(240, agents.length*36+60)+'px';
+  document.getElementById('agentDurWrap').style.height = Math.max(240, agents.length*36+60)+'px';
+
+  destroyChart('agentCallsChart');
+  charts.agentCallsChart = new Chart(document.getElementById('agentCallsChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: callData, backgroundColor: '#3b6ef533', borderColor: '#3b6ef5', borderWidth: 1, borderRadius: 4 }] },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ x:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'#6b7280',font:{size:11}}},
+                y:{grid:{display:false},ticks:{color:'#6b7280',font:{size:10}}} } }
+  });
+
+  destroyChart('agentDurChart');
+  charts.agentDurChart = new Chart(document.getElementById('agentDurChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: durData, backgroundColor: '#12a06633', borderColor: '#12a066', borderWidth: 1, borderRadius: 4 }] },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ x:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{color:'#6b7280',font:{size:11}}},
+                y:{grid:{display:false},ticks:{color:'#6b7280',font:{size:10}}} } }
+  });
+
+  document.getElementById('agent-tbody').innerHTML = agents.map(([name, d]) => {
+    const connRate = d.calls ? ((d.connected/d.calls)*100).toFixed(0) : 0;
+    const avgDur = d.dur.length ? Math.round(d.dur.reduce((s,v)=>s+v,0)/d.dur.length) : 0;
+    const pct = Math.round((d.calls/maxCalls)*100);
+    return `<tr>
+      <td>${name}</td>
+      <td>${d.calls.toLocaleString()}</td>
+      <td>${d.connected.toLocaleString()}</td>
+      <td>
+        <div class="agent-bar"><div class="agent-bar-fill" style="width:${connRate}%;background:${connRate>=50?'#12a066':'#d97706'};"></div></div>
+        <span style="font-size:11px;color:var(--text2);margin-top:2px;display:block;">${connRate}%</span>
+      </td>
+      <td style="font-family:'DM Mono',monospace;">${avgDur.toLocaleString()}</td>
+      <td>${d.phones.size.toLocaleString()}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty-state">No agent data</td></tr>';
+}
+
+/* ── TRENDS ── */
+function renderTrendsTab() {
+  const dailyCounts = {}, dailyConn = {}, hourlyCount = {}, hourlyRT = {};
+
+  filteredJoined.forEach(row => {
+    row.calls.forEach(c => {
+      const ts = parseTS(c['Start Timestamp'] || c['start_timestamp']);
+      if (!ts) return;
+      const day = ts.toISOString().slice(0,10);
+      dailyCounts[day] = (dailyCounts[day]||0)+1;
+      if (isConnected(c)) dailyConn[day] = (dailyConn[day]||0)+1;
+      const h = ts.getHours();
+      hourlyCount[h] = (hourlyCount[h]||0)+1;
+      const ans = parseTS(c['Answered Timestamp']||'');
+      if (ans) {
+        const rt = (ans - ts)/1000;
+        if (rt >= 0 && rt < 3600) {
+          if (!hourlyRT[h]) hourlyRT[h] = [];
+          hourlyRT[h].push(rt);
+        }
+      }
+    });
+  });
+
+  const days = Object.keys(dailyCounts).sort();
+  destroyChart('dailyChart');
+  charts.dailyChart = new Chart(document.getElementById('dailyChart'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [
+        { label: 'Total Calls', data: days.map(d=>dailyCounts[d]||0), borderColor:'#3b6ef5', backgroundColor:'rgba(59,110,245,0.08)', fill:true, tension:0.4, pointRadius:3 },
+        { label: 'Connected', data: days.map(d=>dailyConn[d]||0), borderColor:'#12a066', backgroundColor:'rgba(18,160,102,0.06)', fill:true, tension:0.4, pointRadius:3, borderDash:[4,2] }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#6b7280',font:{size:10},maxTicksLimit:14}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#6b7280',font:{size:10}}}
+      }
+    }
+  });
+
+  const hours = Array.from({length:24},(_,i)=>i);
+  destroyChart('hourlyChart');
+  charts.hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+    type: 'bar',
+    data: { labels: hours.map(h=>`${h}:00`), datasets:[{ data: hours.map(h=>hourlyCount[h]||0), backgroundColor:'#6c4ef533', borderColor:'#6c4ef5', borderWidth:1, borderRadius:3 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false},ticks:{color:'#6b7280',font:{size:10}}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#6b7280',font:{size:10}}} } }
+  });
+
+  destroyChart('responseChart');
+  charts.responseChart = new Chart(document.getElementById('responseChart'), {
+    type: 'bar',
+    data: { labels: hours.map(h=>`${h}:00`), datasets:[{ data: hours.map(h => hourlyRT[h] ? Math.round(hourlyRT[h].reduce((s,v)=>s+v,0)/hourlyRT[h].length) : 0), backgroundColor:'#0891b233', borderColor:'#0891b2', borderWidth:1, borderRadius:3 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false},ticks:{color:'#6b7280',font:{size:10}}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#6b7280',font:{size:10}}} } }
+  });
+}
+
+/* ── MISSED ── */
+let missedAll = [];
+function renderMissedTab() {
+  missedAll = filteredJoined.filter(r =>
+    r.totalCalls === 0 ||
+    (r.totalCalls > 0 && r.connected === 0) ||
+    (r.connected > 0 && !r.calls.some(c => c['Disposition Name'] && c['Disposition Name'].trim()))
+  ).sort((a,b)=>b.riskScore-a.riskScore);
+
+  const neverCalled = filteredJoined.filter(r=>r.totalCalls===0).length;
+  const multiMiss = filteredJoined.filter(r=>r.missed>=3).length;
+  const highRiskNoContact = filteredJoined.filter(r=>r.priorityNorm==='high'&&r.totalCalls===0).length;
+  const noOutcome = filteredJoined.filter(r=>r.connected>0&&!r.calls.some(c=>c['Disposition Name']&&c['Disposition Name'].trim())).length;
+
+  document.getElementById('missed-kpi-grid').innerHTML = [
+    { label: 'Never Called', value: neverCalled, color: 'red' },
+    { label: '3+ Missed Calls', value: multiMiss, color: 'amber' },
+    { label: 'High-Risk Not Contacted', value: highRiskNoContact, color: 'red' },
+    { label: 'Contacted, No Outcome', value: noOutcome, color: 'amber' },
+  ].map(k=>`<div class="kpi-card ${k.color}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value.toLocaleString()}</div></div>`).join('');
+
+  missedDataFiltered = [...missedAll];
+  missedPage = 1;
+  renderMissedTablePage();
+}
+
+function filterMissedTable() {
+  const q = document.getElementById('missed-search').value.toLowerCase();
+  const f = document.getElementById('missed-filter').value;
+  missedDataFiltered = missedAll.filter(r => {
+    if (q && !r.name.toLowerCase().includes(q) && !r.phone.includes(q)) return false;
+    if (f === 'never' && r.totalCalls !== 0) return false;
+    if (f === 'multi-miss' && r.missed < 3) return false;
+    if (f === 'high-risk' && !(r.priorityNorm==='high' && r.totalCalls===0)) return false;
+    if (f === 'no-outcome' && !(r.connected>0 && !r.calls.some(c=>c['Disposition Name']&&c['Disposition Name'].trim()))) return false;
+    return true;
+  });
+  missedPage = 1;
+  renderMissedTablePage();
+}
+
+function sortMissed(col) {
+  if (missedSort.col === col) missedSort.dir *= -1;
+  else { missedSort.col = col; missedSort.dir = -1; }
+  const dir = missedSort.dir;
+  missedDataFiltered.sort((a,b)=>{
+    let va = col==='calls'?a.totalCalls:col==='missed'?a.missed:col==='risk'?a.riskScore:col==='priority'?priOrd(a.priorityNorm):String(a[col]||'');
+    let vb = col==='calls'?b.totalCalls:col==='missed'?b.missed:col==='risk'?b.riskScore:col==='priority'?priOrd(b.priorityNorm):String(b[col]||'');
+    return (va>vb?1:va<vb?-1:0)*dir;
+  });
+  renderMissedTablePage();
+}
+function priOrd(p){return p==='high'?3:p==='medium'?2:p==='low'?1:0;}
+
+function renderMissedTablePage() {
+  const start = (missedPage-1)*PER_PAGE;
+  const page = missedDataFiltered.slice(start, start+PER_PAGE);
+  document.getElementById('missed-tbody').innerHTML = page.map(r => {
+    const isHighRisk = r.priorityNorm==='high'&&r.totalCalls===0;
+    const lastAttempt = r.lastCall ? r.lastCall.toLocaleDateString() : '—';
+    const flags = [];
+    if (r.totalCalls===0) flags.push(`<span class="badge badge-red">Never Called</span>`);
+    if (r.missed>=3) flags.push(`<span class="badge badge-amber">${r.missed} Missed</span>`);
+    if (isHighRisk) flags.push(`<span class="badge badge-red">⚠ High Risk</span>`);
+    const riskColor = r.riskScore>=70?'#dc2626':r.riskScore>=40?'#d97706':'#12a066';
+    return `<tr class="${isHighRisk?'highlight-row':''}">
+      <td>${r.name}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;">${r.phone}</td>
+      <td><span class="priority-dot priority-${r.priorityNorm}"></span>${r.priority||'—'}</td>
+      <td>${statusBadge(r.leadStatus)}</td>
+      <td style="font-family:'DM Mono',monospace;">${r.totalCalls}</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--red);">${r.missed}</td>
+      <td><span style="font-weight:600;color:${riskColor};font-family:'DM Mono',monospace;">${r.riskScore}</span></td>
+      <td style="font-size:12px;color:var(--text2);">${lastAttempt}</td>
+      <td style="white-space:normal;min-width:140px;">${flags.join(' ')}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" class="empty-state">No records found</td></tr>';
+  renderPagination('missed-pagination', missedPage, Math.ceil(missedDataFiltered.length/PER_PAGE), p=>{missedPage=p;renderMissedTablePage();});
+}
+
+/* ── LEADS TABLE ── */
+let leadsAll = [];
+function renderLeadsTab() {
+  leadsAll = [...filteredJoined].sort((a,b)=>b.totalCalls-a.totalCalls);
+  leadsDataFiltered = [...leadsAll];
+  leadsPage = 1;
+  filterLeadsTable();
+}
+
+function filterLeadsTable() {
+  const q = (document.getElementById('lead-search').value||'').toLowerCase();
+  const status = document.getElementById('lead-status-filter').value.toLowerCase();
+  const priority = document.getElementById('lead-priority-filter').value.toLowerCase();
+  leadsDataFiltered = leadsAll.filter(r => {
+    if (q && !r.name.toLowerCase().includes(q) && !r.phone.includes(q) && !r.agent.toLowerCase().includes(q)) return false;
+    if (status !== 'all' && r.leadStatus.toLowerCase() !== status) return false;
+    if (priority !== 'all' && r.priorityNorm !== priority) return false;
+    return true;
+  });
+  document.getElementById('leads-count').textContent = leadsDataFiltered.length.toLocaleString() + ' leads';
+  leadsPage = 1;
+  renderLeadsTablePage();
+}
+
+function sortLeads(col) {
+  if (leadsSort.col===col) leadsSort.dir*=-1;
+  else{leadsSort.col=col;leadsSort.dir=-1;}
+  const dir=leadsSort.dir;
+  leadsDataFiltered.sort((a,b)=>{
+    let va=col==='totalCalls'?a.totalCalls:col==='totalDuration'?a.totalDuration:col==='priority'?priOrd(a.priorityNorm):col==='firstCall'||col==='lastCall'?(a[col]?a[col].getTime():0):String(a[col]||'');
+    let vb=col==='totalCalls'?b.totalCalls:col==='totalDuration'?b.totalDuration:col==='priority'?priOrd(b.priorityNorm):col==='firstCall'||col==='lastCall'?(b[col]?b[col].getTime():0):String(b[col]||'');
+    return (va>vb?1:va<vb?-1:0)*dir;
+  });
+  renderLeadsTablePage();
+}
+
+function renderLeadsTablePage() {
+  const start=(leadsPage-1)*PER_PAGE;
+  const page=leadsDataFiltered.slice(start,start+PER_PAGE);
+  document.getElementById('leads-tbody').innerHTML=page.map(r=>`<tr>
+    <td>${r.name}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:12px;">${r.phone}</td>
+    <td><span class="priority-dot priority-${r.priorityNorm}"></span>${r.priority||'—'}</td>
+    <td>${statusBadge(r.leadStatus)}</td>
+    <td style="font-family:'DM Mono',monospace;">${r.totalCalls}</td>
+    <td style="font-size:12px;color:var(--text2);">${r.firstCall?r.firstCall.toLocaleDateString():'—'}</td>
+    <td style="font-size:12px;color:var(--text2);">${r.lastCall?r.lastCall.toLocaleDateString():'—'}</td>
+    <td style="font-family:'DM Mono',monospace;">${Math.round(r.totalDuration).toLocaleString()}</td>
+    <td style="font-size:12px;">${r.agent||'—'}</td>
+    <td>${riskBadge(r.hba1cRisk)}</td>
+    <td>${riskBadge(r.cholRisk)}</td>
+  </tr>`).join('')||'<tr><td colspan="11" class="empty-state">No leads found</td></tr>';
+  renderPagination('leads-pagination',leadsPage,Math.ceil(leadsDataFiltered.length/PER_PAGE),p=>{leadsPage=p;renderLeadsTablePage();});
+}
+
+function statusBadge(s){
+  const m={'Connected':'badge-green','Not Connected':'badge-amber','Not Called':'badge-red','Called':'badge-blue'};
+  return `<span class="badge ${m[s]||'badge-gray'}">${s}</span>`;
+}
+function riskBadge(r){
+  if(!r||r.trim()==='') return '<span style="color:var(--text3);font-size:11px;">—</span>';
+  const low=r.toLowerCase();
+  const cls=low.includes('high')||low==='3'?'badge-red':low.includes('border')||low.includes('med')||low==='2'?'badge-amber':'badge-green';
+  return `<span class="badge ${cls}">${r}</span>`;
+}
+
+/* ── PAGINATION ── */
+function renderPagination(containerId, current, totalPages, onPage) {
+  const el = document.getElementById(containerId);
+  if (totalPages<=1){el.innerHTML='';return;}
+  let html = '';
+  if(current>1) html+=`<button class="page-btn" onclick="(${onPage.toString()})(${current-1})">‹</button>`;
+  const range=[];
+  for(let i=Math.max(1,current-2);i<=Math.min(totalPages,current+2);i++) range.push(i);
+  if(range[0]>1){html+=`<button class="page-btn" onclick="(${onPage.toString()})(1)">1</button>`;if(range[0]>2) html+=`<span class="page-info">…</span>`;}
+  range.forEach(p=>{ html+=`<button class="page-btn${p===current?' active':''}" onclick="(${onPage.toString()})(${p})">${p}</button>`; });
+  if(range[range.length-1]<totalPages){if(range[range.length-1]<totalPages-1) html+=`<span class="page-info">…</span>`;html+=`<button class="page-btn" onclick="(${onPage.toString()})(${totalPages})">${totalPages}</button>`;}
+  if(current<totalPages) html+=`<button class="page-btn" onclick="(${onPage.toString()})(${current+1})">›</button>`;
+  html+=`<span class="page-info">Page ${current} of ${totalPages}</span>`;
+  el.innerHTML=html;
+}
+
+/* ── TABS ── */
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+/* ── DESTROY CHART ── */
+function destroyChart(id) { if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+/* ── DOWNLOAD ── */
+function downloadProcessed() {
+  const rows = filteredJoined.map(r => ({
+    Phone: r.phone,
+    'Customer Name': r.name,
+    Priority: r.priority,
+    'Lead Status': r.leadStatus,
+    'Total Calls': r.totalCalls,
+    Connected: r.connected,
+    'Missed Calls': r.missed,
+    'First Call': r.firstCall ? r.firstCall.toISOString() : '',
+    'Last Call': r.lastCall ? r.lastCall.toISOString() : '',
+    'Total Duration (s)': Math.round(r.totalDuration),
+    'Last Agent': r.agent,
+    'Risk Score': r.riskScore,
+    'HbA1c Risk': r.hba1cRisk,
+    'Chol Risk': r.cholRisk,
+    'Trig Risk': r.trigRisk,
+  }));
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='processed_leads.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
